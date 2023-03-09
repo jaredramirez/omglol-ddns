@@ -1,4 +1,5 @@
-{ config, lib, pkgs, omglol-ddns, ... }:
+{ omglol-ddns }:
+{ config, lib, pkgs, ... }:
 
 with lib;
 

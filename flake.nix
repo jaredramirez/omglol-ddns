@@ -8,8 +8,8 @@
     utils.lib.eachDefaultSystem (system:
       let pkgs = import nixpkgs { inherit system; };
       in {
-        packages = {
-          app = pkgs.rustPlatform.buildRustPackage rec {
+        packages = rec {
+          default = pkgs.rustPlatform.buildRustPackage rec {
             pname = "omglol-ddns";
             version = "0.1.0";
             src = ./.;
@@ -20,6 +20,7 @@
               else
                 [ ];
           };
+          service = import ./service { omglol-ddns = default; };
         };
       });
 }
