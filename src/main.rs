@@ -1,12 +1,13 @@
 use clap::Parser;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::env;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[arg(long)]
-    api_key: String,
+    api_key: Option<String>,
     #[arg(long)]
     name: String,
     #[arg(long)]
@@ -24,15 +25,20 @@ async fn main() {
         .await
         .expect("Could not find ipv6 addr");
 
+    let api_key = args
+        .api_key
+        .or_else(|| env::var("OMGLOL_API_KEY").ok())
+        .expect("Must pass in api_key arg or define OMGLOL_API_KEY environment variable");
+
     let client = Client::new();
 
-    let dns_records = get_dns_records(&client, &args.api_key, &args.name)
+    let dns_records = get_dns_records(&client, &api_key, &args.name)
         .await
         .expect("Failed to get existing DNS records");
 
     upsert_dns_record(
         &client,
-        &args.api_key,
+        &api_key,
         &args.name,
         &dns_records,
         DnsRecordPayload {
@@ -46,7 +52,7 @@ async fn main() {
 
     upsert_dns_record(
         &client,
-        &args.api_key,
+        &api_key,
         &args.name,
         &dns_records,
         DnsRecordPayload {
@@ -61,7 +67,7 @@ async fn main() {
     println!(
         "{}",
         format!(
-            "Create A DNS record at {}.{}.omg.lol pointing to {} (ipv4)",
+            "Created/updated A (ipv4) DNS record at {}.{}.omg.lol pointing to {}",
             args.subdomain,
             args.name,
             ipv4_addr.to_owned()
@@ -70,7 +76,7 @@ async fn main() {
     println!(
         "{}",
         format!(
-            "Create AAAA DNS record at {}.{}.omg.lol pointing to {} (ipv4)",
+            "Created/updated AAAA (ipv4) DNS record at {}.{}.omg.lol pointing to {}",
             args.subdomain,
             args.name,
             ipv6_addr.to_owned()
@@ -90,11 +96,10 @@ async fn upsert_dns_record(
         .iter()
         .find(|v| v.type_ == payload.type_ && v.name == dns_name_qual);
 
-    if let Some(record) = opt_record {
-        delete_dns_record(client, apikey, name, record.id).await?;
+    match opt_record {
+        Some(record) => update_dns_record(client, apikey, name, record).await,
+        None => create_dns_record(client, apikey, name, payload).await,
     }
-
-    create_dns_record(client, apikey, name, payload).await
 }
 
 #[derive(Deserialize)]
@@ -145,39 +150,17 @@ async fn create_dns_record(
     }
 }
 
-async fn delete_dns_record(
+async fn update_dns_record(
     client: &Client,
     apikey: &String,
     name: &String,
-    id: i64,
+    payload: &DnsRecord,
 ) -> Result<(), Error> {
     let response = client
-        .delete(format!("https://api.omg.lol/address/{}/dns/{}", name, id))
-        .header("Authorization", format!("Bearer {}", apikey))
-        .send()
-        .await?;
-
-    let status = response.status();
-    let resp_test = response.text().await?;
-
-    if status != 200 {
-        println!("resp: {}", &resp_test);
-        Err(resp_test)?
-    } else {
-        Ok(())
-    }
-}
-
-// As of 2023-03-02, the update API seems to be broken
-async fn _update_dns_record(
-    client: &Client,
-    apikey: &String,
-    name: &String,
-    id: i64,
-    payload: DnsRecordPayload,
-) -> Result<(), Error> {
-    let response = client
-        .patch(format!("https://api.omg.lol/address/{}/dns/{}", name, id))
+        .patch(format!(
+            "https://api.omg.lol/address/{}/dns/{}",
+            name, payload.id
+        ))
         .header("Authorization", format!("Bearer {}", apikey))
         .json(&payload)
         .send()
