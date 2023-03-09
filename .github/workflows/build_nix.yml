@@ -11,4 +11,4 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v1
       - name: Building package
-        run: nix-build .#
+        run: nix build .#

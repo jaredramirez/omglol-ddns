@@ -18,7 +18,7 @@
               if system == "aarch64-darwin" || system == "x86_64-darwin" then
                 [ pkgs.darwin.apple_sdk.frameworks.Security ]
               else
-                [ ];
+                [ pkgs.pkg-config ];
           };
           service = import ./service { omglol-ddns = default; };
         };
